@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>{% block title %}{% endblock %}</title>
-    </head>
-    <body>
-        <div id="content">
-            {% block content %}
-            {% endblock %}
-        </div>
-    </body>
+  <head>
+    <title>{% block title %}{% endblock %}</title>
+  </head>
+  <body>
+    {% for message in get_flashed_messages() %}
+      <div class=flash>{{ message }}</div>
+    {% endfor %}
+    <div id="content">
+      {% block content %}
+      {% endblock %}
+    </div>
+  </body>
 </html>

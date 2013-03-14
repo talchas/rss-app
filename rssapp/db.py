@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property, Comparator
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
 from sqlalchemy.schema import Column
-from sqlalchemy.types import DateTime, Integer, Unicode
+from sqlalchemy.types import DateTime, Integer, Unicode, Boolean
 from pbkdf2 import crypt
 
 engine = create_engine('sqlite:///app.db')
@@ -60,6 +60,7 @@ class Entry(Base):
 
     name = Column(Unicode, nullable=False)
     url = Column(Unicode, nullable=False)
+    read = Column(Boolean, nullable=False)
     date = Column(DateTime, nullable=False, index=True)
 
 

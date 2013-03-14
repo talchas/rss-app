@@ -1,0 +1,16 @@
+{% extends "_base.html" %}
+
+{% block title %}Feed: '{{ feed.name }}'{% endblock %}
+
+{% block content %}
+  <div class="feed">
+    <a href="{{ feed.link }}">{{ feed.name }}</a>
+  </div>
+  {% for item in items %}
+    <div class="item{% if item.unread %} unread{% endif %}">
+      <div class="name">
+        <a href="{{ item.url }}">{{ item.name }}</a>
+      </div>
+    </div>
+  {% endfor %}
+{% endblock %}

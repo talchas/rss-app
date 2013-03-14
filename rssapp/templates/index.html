@@ -3,5 +3,25 @@
 {% block title %}All feeds{% endblock %}
 
 {% block content %}
-
+<div id="unread">
+  {% for item in unread %}
+    <div class="item unread">
+      <div class="name">
+        <a href="{{ item.url }}">{{ item.name }}</a>
+      </div>
+      <div class="source">
+        <a href="{{ item.owner.link }}">{{ item.owner.name }}</a>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+<div id="feeds">
+  {% for item in feeds %}
+    <div class="feed">
+      <a href="{{ url_for('feed', feed_id = item.id) }}">{{ item.name }}</a>
+      <a href="{{ url_for('add_entry', feed_id = item.id) }}">new entry</a>
+    </div>
+  {% endfor %}
+</div>
+<a href="{{ url_for('add_feed') }}">New feed</a>
 {% endblock %}
