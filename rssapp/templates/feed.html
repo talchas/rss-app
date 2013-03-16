@@ -3,14 +3,15 @@
 {% block title %}Feed: '{{ feed.name }}'{% endblock %}
 
 {% block content %}
-  <div class="feed">
-    <a href="{{ feed.link }}">{{ feed.name }}</a>
+  <div id="header">
+    <a href="{{ url_for('root') }}">Back</a>
+    <a class="showread" href="{{ url_for('feed', feed_id = feed.id, show_read = not show_read) }}">
+      {%- if show_read %}Hide read{% else %}Show read{% endif -%}
+    </a>
+    <a class="markread" href="{{ url_for('read_feed', feed_id = feed.id, stamp=stamp) }}">Mark all as read</a>
+    <a class="title" href="{{ feed.link }}">{{ feed.name }}</a>
   </div>
   {% for item in items %}
-    <div class="item{% if item.unread %} unread{% endif %}">
-      <div class="name">
-        <a href="{{ item.url }}">{{ item.name }}</a>
-      </div>
-    </div>
+    {{ showentry(item, toggle=True) }}
   {% endfor %}
 {% endblock %}

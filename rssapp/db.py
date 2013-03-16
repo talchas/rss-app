@@ -68,7 +68,7 @@ class Feed(Base):
     
 class Entry(Base):
     __tablename__ = 'Entry'
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True) #danger, assumed nondecreasing
     _owner = Column(Integer, ForeignKey("Feed.id"), nullable=False)
     owner = relationship("Feed") # always do a proper query to paginate - slices work at least on queries, dunno these too?
 
@@ -76,7 +76,6 @@ class Entry(Base):
     url = Column(Unicode, nullable=False)
     read = Column(Boolean, nullable=False)
     date = Column(DateTime, nullable=False, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True) # will want to mark-all-read by this one
 
 
 if __name__ == "__main__":

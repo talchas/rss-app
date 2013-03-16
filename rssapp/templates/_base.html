@@ -2,7 +2,38 @@
 <html>
   <head>
     <title>{% block title %}{% endblock %}</title>
+    <style>
+      .item { }
+      .unread { border-color: blue; }
+      .read { opacity: .5; }
+      #feeds { margin-top: 1em; }
+      #header { margin-bottom: 1em; }
+      .title { font-size: larger; font-weight: bold; display:block; }
+      .source {
+        display: block;
+        margin-left: 1em;
+        font-size: smaller;
+      }
+    </style>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
   </head>
+  {%- macro showentry(item, toggle=False, source=False) -%}
+    <div class="item {% if not item.read %}un{% endif %}read">
+      <span class="name">
+        <a href="{{ url_for('read_and_go', id = item.id) }}" displayurl="{{ item.url }}" target="_blank">{{ item.name }}</a>
+      </span>
+      {% if toggle -%}
+      <span class="toggleread">
+        <a href="{{ url_for('toggle_read', entry_id = item.id) }}">R</a>
+      </span>
+      {%- endif -%}
+      {% if source -%}
+      <span class="source">
+        <a href="{{ item.owner.link }}">{{ item.owner.name }}</a>
+      </span>
+      {%- endif %}
+    </div>
+  {%- endmacro -%}
   <body>
     {% for message in get_flashed_messages() %}
       <div class=flash>{{ message }}</div>
@@ -11,5 +42,38 @@
       {% block content %}
       {% endblock %}
     </div>
+    <script type="text/javascript">
+      $ROOT = {{ request.script_root|tojson|safe }};
+      $(function() {
+
+      var toggleRead = function(child) {
+        var href = $(child).attr('ajax') || child.href;
+        var parent = $(child).parents(".item");
+        if (parent.hasClass("unread")) {
+          parent.removeClass("unread");
+          parent.addClass("read");
+        } else {
+          parent.removeClass("read");
+          parent.addClass("unread");
+        }
+        $.ajax(href, {async: false});
+      };
+      $('.toggleread a').on('click', function(e) {
+        if (e.button != 0) return;
+        toggleRead(this);
+        return false;
+      });
+      $('.item .name a').each(function (_, i) {
+        $(i).attr('ajax', i.href);
+        i.href = $(i).attr('displayurl');
+      });
+      $('.unread.item .name a').on('click', function(e) {
+        if (e.button != 0) return true;
+        $(this).off('click')
+        toggleRead(this);
+        return true;
+      })
+      });
+    </script>
   </body>
 </html>

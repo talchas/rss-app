@@ -3,16 +3,15 @@
 {% block title %}All feeds{% endblock %}
 
 {% block content %}
+<div id="header">
+  <a class="showread" href="{{ url_for('main', show_read = not show_read) }}">
+    {%- if show_read %}Hide read{% else %}Show read{% endif -%}
+  </a>
+  <a class="markread" href="{{ url_for('read_all', stamp=stamp) }}">Mark all as read</a>
+</div>
 <div id="unread">
-  {% for item in unread %}
-    <div class="item unread">
-      <div class="name">
-        <a href="{{ item.url }}">{{ item.name }}</a>
-      </div>
-      <div class="source">
-        <a href="{{ item.owner.link }}">{{ item.owner.name }}</a>
-      </div>
-    </div>
+  {% for item in entries %}
+    {{ showentry(item, source=True) }}
   {% endfor %}
 </div>
 <div id="feeds">

@@ -7,28 +7,46 @@ from datetime import datetime
 from flask import Flask, session, request, redirect, url_for, render_template, flash, g
 from rssapp import db
 from decorator import decorator
+from flask.ext.wtf import Form
+from wtforms import TextField, PasswordField, validators
+from werkzeug.routing import Rule, Map, BaseConverter
+
 app = Flask("rssapp")
 
+class BooleanConverter(BaseConverter):
+
+    def __init__(self, url_map, randomify=False):
+        super(BooleanConverter, self).__init__(url_map)
+        self.regex = '(?:yes|no)'
+
+    def to_python(self, value):
+        return value == 'yes'
+
+    def to_url(self, value):
+        return value and 'yes' or 'no'
+
+app.url_map.converters['bool'] = BooleanConverter
 @app.teardown_request
 def shutdown_session(exception=None):
     db.session.remove()
 
 
-@app.route("/login", methods = ["POST"])
-def login_post():
-    user = db.session.query(db.User).filter_by(name = request.form['name']).first()
-    if user and user.password == request.form['password']:
-        session['user_id'] = user.id
-        session.permanent = True
-        flash("login as '%s' successful" % user.name)
-        return redirect(request.args['next'] or url_for("/"))
-    else:
-        flash("login as '%s' failed" % request.form['name'])
-        return login()
+class LoginForm(Form):
+    name = TextField('Name', validators=[validators.required()])
+    password = PasswordField('Password', validators=[validators.required()])
 
-@app.route("/login")
+@app.route("/login", methods = ["GET", "POST"])
 def login():
-    return render_template('login.html')
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = db.session.query(db.User).filter_by(name = form.name.data).first()
+        if user and user.password == form.password.data:
+            session['user_id'] = user.id
+            session.permanent = True
+            flash("login as '%s' successful" % user.name)
+            return redirect(request.args['next'] or url_for("/"))
+    flash("login as '%s' failed" % (form.name.data or ''))
+    return render_template('login.html', form=form)
 
 @decorator
 def require_login(page, *args, **kw):
@@ -41,33 +59,50 @@ def require_login(page, *args, **kw):
 @app.route("/logout")
 def logout():
     flash("logged out")
-    session.pop('user', None)
-    return redirect("/")
+    session.pop('user_id', None)
+    return redirect(url_for('main'))
 
+def mark_read_stamp(items):
+    x = 0
+    for item in items:
+        x = max(x, item.id)
+    return x
 
 @app.route("/")
-@require_login
 def root():
-    user = g.user
-    unread = db.session.query(db.Entry).filter_by(read = False).join(db.Feed).filter(db.Feed.owner == user).all()
-    return render_template("index.html", feeds=user.feeds, unread=unread)
+    return redirect(url_for('main'))
 
-@app.route("/add_feed", methods=["POST"])
+@app.route("/main")
+@app.route("/main/<bool:show_read>")
 @require_login
-def add_feed_post():
-    #todo csrf?, generally need csrf flask-wtf, sijax?
+def main(show_read = False):
     user = g.user
-    foo = db.Feed(name = request.form['name'], feed_url=request.form['url'], link=request.form['url'], ttl = 10, next_check=datetime.utcnow(), owner = user)
-    db.session.add(foo)
-    flash("added feed, total now %s" % repr(user.feeds))
-    db.session.commit()
-    return redirect("/")
+    
+    entries = db.session.query(db.Entry).join(db.Feed).filter(db.Feed.owner == user)
+    if not show_read:
+        entries = entries.filter(db.Entry.read == False)
+    entries = entries.order_by(db.Entry.date.desc())[0:500]
+    return render_template("index.html", feeds=user.feeds, entries=entries,
+                           stamp=mark_read_stamp(entries), show_read = show_read)
 
-@app.route("/add_feed")
+class AddFeedForm(Form):
+    name = TextField('Name', validators=[validators.required()])
+    url = TextField('URL', validators=[validators.required(), validators.URL()])
+
+@app.route("/add_feed", methods=["GET", "POST"])
 @require_login
 def add_feed():
-    return render_template("add_feed.html")
-
+    user = g.user
+    form = AddFeedForm()
+    if form.validate_on_submit():
+        foo = db.Feed(name = request.form['name'], feed_url=request.form['url'], link=request.form['url'], ttl = 10, next_check=datetime.utcnow(), owner = user)
+        db.session.add(foo)
+        flash("added feed, total now %s" % repr(user.feeds))
+        db.session.commit()
+        return redirect(url_for('main'))
+    for field in form.errors:
+        flash("%s: %s" % (field,form.errors[field]))
+    return render_template("add_feed.html", form=form)
 
 @app.route("/add_entry/<int:feed_id>", methods=['POST'])
 @require_login
@@ -75,7 +110,7 @@ def add_entry_post(feed_id):
     foo = db.Entry(name = request.form['name'], url=request.form['url'], date=datetime.utcnow(), _owner = feed_id, read = False)
     db.session.add(foo)
     db.session.commit()
-    return redirect('/')
+    return redirect(url_for('main'))
 
 
 @app.route("/add_entry/<int:feed_id>")
@@ -84,11 +119,68 @@ def add_entry(feed_id):
     return render_template("add_entry.html")
 
 @app.route("/feed/<int:feed_id>")
+@app.route("/feed/<int:feed_id>/<bool:show_read>")
 @require_login
-def feed(feed_id):
+def feed(feed_id, show_read = True):
     feed = db.session.query(db.Feed).filter_by(id = feed_id).one()
-    entries = db.session.query(db.Entry).filter_by(owner = feed).all()
-    return render_template("feed.html", feed = feed, items = entries)
+    entries = db.session.query(db.Entry).filter_by(owner = feed).order_by(db.Entry.date.desc())
+    if not show_read:
+        entries = entries.filter_by(read = False)
+    return render_template("feed.html", feed = feed, items = entries, stamp=mark_read_stamp(entries), show_read=show_read)
+
+def mark_read(last, feed_id = None):
+    entries = db.session.query(db.Entry).filter_by(read = False).filter(db.Entry.id <= last)
+    if feed:
+        entries = entries.filter(db.Entry._owner == feed_id)
+    count = 0
+    for e in entries:
+        e.read = True
+        count += 1
+    db.session.commit()
+    return count
+
+
+@app.route("/read_feed/<int:feed_id>/<int:stamp>")
+@require_login
+def read_feed(feed_id, stamp):
+    count = mark_read(stamp, feed_id)
+    flash("Marked %d as read" % count)
+    return redirect(url_for('feed', feed_id=feed_id))
+
+
+@app.route("/read_all/<int:stamp>")
+@require_login
+def read_all(stamp):
+    count = mark_read(stamp)
+    flash("Marked %d as read" % count)
+    return redirect(url_for('main'))
+
+
+@decorator
+def ajax_null(page, *args, **kw):
+    value = page(*args, **kw)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return ""
+    return value
+
+
+@app.route("/toggle_read/<int:entry_id>")
+@ajax_null
+@require_login
+def toggle_read(entry_id):
+    entry = db.session.query(db.Entry).filter_by(id = entry_id).one()
+    entry.read = not entry.read
+    db.session.commit()
+    return redirect(request.referrer or url_for('feed', entry.owner.id))
+
+@app.route("/read_and_go/<int:id>")
+@ajax_null
+@require_login
+def read_and_go(id):
+    entry = db.session.query(db.Entry).filter_by(id = id).one()
+    entry.read = True
+    db.session.commit()
+    return redirect(entry.url)
 
 app.secret_key = b'\xf5\xdd\xbc\x8f\x83\x10Na\t\xd3\xe7C99\x80\xdb6\xc5G\x1f\'\xfb\x1e\x0f\xdez\xe9\x7f\x16\x02\x9e\x1f{(\x0f\x10\x01"\xfe\xd2\ny\x0b\xd8\x9d\x06\xc3\x9c\xf7B8\xf7\xdb\x80\xdc\xe2\xcf\x91[\n\x13eo\x15'
 
