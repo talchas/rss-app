@@ -2,41 +2,59 @@ from __future__ import absolute_import, unicode_literals
 from multiprocessing import Process, Pipe
 from decorator import decorator
 from rssapp import db
+from datetime import datetime
+import sys
 import os
 
-child = None
-send_pipe = None
+def runner(self):
+    self.run()
+class Worker:
+    def __init__(self, debug = False):
+        self.events = []
+        if debug:
+            self.send = None
+            self.start_pid = False
+            return
+        self.start_pid = os.getpid()
+        r, s = Pipe(False)
+        self.q = r
+        self.send = s
+        self.proc = Process(target = runner, args=(self,) )
+        self.proc.start()
 
-def worker(q):
-    global child
-    child = None
-    print "worker2 %d" % os.getpid()
-    while True:
-        (f, args, kw) = q.recv()
-        f(*args, **kw)
+    @decorator
+    def rpc(f, *args, **kw):
+        self = args[0]
+        if self.send:
+            return self.send.send((f.__name__,args[1:], kw)) #args, kw
+        else:
+            return f(*args, **kw)
+    def run(self):
+        self.send = None
+        print "worker2 %d" % os.getpid()
+        while True:
+            if self.q.poll(self.next_timeout()):
+                (fn, args, kw) = self.q.recv()
+                self.__class__.__dict__[fn](self, *args, **kw)
+            else:
+                self.run_current_event() 
 
-@decorator
-def in_child(f, *args, **kw):
-    global child, send_pipe
-    if child:
-        return f(*args, **kw)
-    else:
-        return send_pipe.send((f, args, kw))
+    def next_timeout(self):
+        if len(self.events) == 0:
+            return None
+        return self.events[0]['time']
 
+    def run_current_event(self):
+        return self.events[0]['thunk']()
 
-@in_child
-def print_foo(v):
-    print "%d, %s" % (os.getpid(), str(v))
+    @rpc
+    def foo(self, v,y):
+        print db.session.query(db.Entry).filter(db.Entry.id > v).all()
 
-@in_child
-def foo(v):
-    print db.session.query(db.Entry).all()
+    @rpc
+    def quit(self):
+        sys.exit(0)
 
-def start():
-    global child, send_pipe
-    if not child:
-        a, b = Pipe(False)
-        child = Process(target = worker, args=(a,) )
-        send_pipe = b
-        child.start()
-        a.close()
+    def __del__(self):
+        if self.start_pid == os.getpid():
+            self.quit()
