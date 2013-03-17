@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 
 from datetime import datetime
 from flask import Flask, session, request, redirect, url_for, render_template, flash, g
-from rssapp import db
+from rssapp import db, worker
 from decorator import decorator
 from flask.ext.wtf import Form
 from wtforms import TextField, PasswordField, validators
@@ -53,7 +53,7 @@ def require_login(page, *args, **kw):
     userid = session.get('user_id')
     if not userid:
         return redirect(url_for("login", next = request.path))
-    g.user = db.session.query(db.User).filter_by(id = userid).one()
+    g.user = db.session.query(db.User).get(userid)
     return page(*args, **kw)
 
 @app.route("/logout")
@@ -72,16 +72,22 @@ def mark_read_stamp(items):
 def root():
     return redirect(url_for('main'))
 
+def get_entries(user, feed = None, show_read = False, start = 0, count = 500):
+    entries = db.session.query(db.Entry).order_by(db.Entry.date.desc())
+    if not show_read:
+        entries = entries.filter_by(read = False)
+    if feed:
+        entries = entries.filter_by(owner = feed)
+    else:
+        entries = entries.join(db.Feed).filter(db.Feed.owner == user)
+    return entries[start:(start+count)]
+
+
 @app.route("/main")
 @app.route("/main/<bool:show_read>")
 @require_login
 def main(show_read = False):
-    user = g.user
-    
-    entries = db.session.query(db.Entry).join(db.Feed).filter(db.Feed.owner == user)
-    if not show_read:
-        entries = entries.filter(db.Entry.read == False)
-    entries = entries.order_by(db.Entry.date.desc())[0:500]
+    entries = get_entries(g.user, show_read = show_read)
     return render_template("index.html", feeds=user.feeds, entries=entries,
                            stamp=mark_read_stamp(entries), show_read = show_read)
 
@@ -112,7 +118,6 @@ def add_entry_post(feed_id):
     db.session.commit()
     return redirect(url_for('main'))
 
-
 @app.route("/add_entry/<int:feed_id>")
 @require_login
 def add_entry(feed_id):
@@ -122,10 +127,8 @@ def add_entry(feed_id):
 @app.route("/feed/<int:feed_id>/<bool:show_read>")
 @require_login
 def feed(feed_id, show_read = True):
-    feed = db.session.query(db.Feed).filter_by(id = feed_id).one()
-    entries = db.session.query(db.Entry).filter_by(owner = feed).order_by(db.Entry.date.desc())
-    if not show_read:
-        entries = entries.filter_by(read = False)
+    feed = db.session.query(db.Feed).get(feed_id)
+    entries = get_entries(g.user, feed = feed, show_read = show_read)
     return render_template("feed.html", feed = feed, items = entries, stamp=mark_read_stamp(entries), show_read=show_read)
 
 def mark_read(last, feed_id = None):
@@ -139,14 +142,12 @@ def mark_read(last, feed_id = None):
     db.session.commit()
     return count
 
-
 @app.route("/read_feed/<int:feed_id>/<int:stamp>")
 @require_login
 def read_feed(feed_id, stamp):
     count = mark_read(stamp, feed_id)
     flash("Marked %d as read" % count)
     return redirect(url_for('feed', feed_id=feed_id))
-
 
 @app.route("/read_all/<int:stamp>")
 @require_login
@@ -155,7 +156,6 @@ def read_all(stamp):
     flash("Marked %d as read" % count)
     return redirect(url_for('main'))
 
-
 @decorator
 def ajax_null(page, *args, **kw):
     value = page(*args, **kw)
@@ -163,12 +163,11 @@ def ajax_null(page, *args, **kw):
         return ""
     return value
 
-
 @app.route("/toggle_read/<int:entry_id>")
 @ajax_null
 @require_login
 def toggle_read(entry_id):
-    entry = db.session.query(db.Entry).filter_by(id = entry_id).one()
+    entry = db.session.query(db.Entry).get(entry_id)
     entry.read = not entry.read
     db.session.commit()
     return redirect(request.referrer or url_for('feed', entry.owner.id))
@@ -177,10 +176,10 @@ def toggle_read(entry_id):
 @ajax_null
 @require_login
 def read_and_go(id):
-    entry = db.session.query(db.Entry).filter_by(id = id).one()
+    entry = db.session.query(db.Entry).get(id)
     entry.read = True
     db.session.commit()
     return redirect(entry.url)
 
 app.secret_key = b'\xf5\xdd\xbc\x8f\x83\x10Na\t\xd3\xe7C99\x80\xdb6\xc5G\x1f\'\xfb\x1e\x0f\xdez\xe9\x7f\x16\x02\x9e\x1f{(\x0f\x10\x01"\xfe\xd2\ny\x0b\xd8\x9d\x06\xc3\x9c\xf7B8\xf7\xdb\x80\xdc\xe2\xcf\x91[\n\x13eo\x15'
-
+worker.start()
