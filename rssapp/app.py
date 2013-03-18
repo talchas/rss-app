@@ -73,7 +73,7 @@ def root():
     return redirect(url_for('main'))
 
 def get_entries(user, feed = None, show_read = False, start = 0, count = 500):
-    entries = db.session.query(db.Entry).order_by(db.Entry.date.desc())
+    entries = db.session.query(db.Entry).order_by(db.Entry.date.desc()).order_by(db.Entry.id.desc())
     if not show_read:
         entries = entries.filter_by(read = False)
     if feed:
@@ -87,8 +87,9 @@ def get_entries(user, feed = None, show_read = False, start = 0, count = 500):
 @app.route("/main/<bool:show_read>")
 @require_login
 def main(show_read = False):
+    async.ping()
     entries = get_entries(g.user, show_read = show_read)
-    return render_template("index.html", feeds=user.feeds, entries=entries,
+    return render_template("index.html", feeds=g.user.feeds, entries=entries,
                            stamp=mark_read_stamp(entries), show_read = show_read)
 
 class AddFeedForm(Form):
@@ -105,6 +106,7 @@ def add_feed():
         db.session.add(foo)
         flash("added feed, total now %s" % repr(user.feeds))
         db.session.commit()
+        async.recheck_feeds()
         return redirect(url_for('main'))
     for field in form.errors:
         flash("%s: %s" % (field,form.errors[field]))
@@ -133,7 +135,7 @@ def feed(feed_id, show_read = True):
 
 def mark_read(last, feed_id = None):
     entries = db.session.query(db.Entry).filter_by(read = False).filter(db.Entry.id <= last)
-    if feed:
+    if feed_id:
         entries = entries.filter(db.Entry._owner == feed_id)
     count = 0
     for e in entries:

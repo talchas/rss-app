@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals
-import datetime
+from datetime import datetime
 
-from sqlalchemy import create_engine, ForeignKey
+from sqlalchemy import create_engine, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property, Comparator
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
@@ -62,9 +62,13 @@ class Feed(Base):
     _owner = Column(Integer, ForeignKey("User.id"), nullable=False)
     name = Column(Unicode, nullable=False)
     feed_url = Column(Unicode, nullable=False)
-    link = Column(Unicode, nullable=False)
-    ttl = Column(Integer, nullable=False) # minutes?
-    next_check = Column(DateTime, nullable=False)
+    link = Column(Unicode)
+    ttl = Column(Integer, nullable=False, default=60) # minutes?
+    next_check = Column(DateTime, nullable=False, default = datetime.utcfromtimestamp(0))
+
+    # http caching
+    last_modified = Column(DateTime)
+    etag = Column(DateTime)
     
 class Entry(Base):
     __tablename__ = 'Entry'
@@ -72,10 +76,12 @@ class Entry(Base):
     _owner = Column(Integer, ForeignKey("Feed.id"), nullable=False)
     owner = relationship("Feed") # always do a proper query to paginate - slices work at least on queries, dunno these too?
 
-    name = Column(Unicode, nullable=False)
-    url = Column(Unicode, nullable=False)
-    read = Column(Boolean, nullable=False)
+    name = Column(Unicode, nullable=False, default = '[no title]')
+    url = Column(Unicode, nullable=False, default = '')
+    read = Column(Boolean, nullable=False, default = False)
     date = Column(DateTime, nullable=False, index=True)
+
+    parsed_id = Column(Unicode, index=True)
 
 
 if __name__ == "__main__":

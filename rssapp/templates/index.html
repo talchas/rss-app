@@ -18,7 +18,6 @@
   {% for item in feeds %}
     <div class="feed">
       <a href="{{ url_for('feed', feed_id = item.id) }}">{{ item.name }}</a>
-      <a href="{{ url_for('add_entry', feed_id = item.id) }}">new entry</a>
     </div>
   {% endfor %}
 </div>

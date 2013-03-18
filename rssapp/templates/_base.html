@@ -8,6 +8,7 @@
       .read { opacity: .5; }
       #feeds { margin-top: 1em; }
       #header { margin-bottom: 1em; }
+      #header * { margin-right: .4em;}
       .title { font-size: larger; font-weight: bold; display:block; }
       .source {
         display: block;
@@ -56,7 +57,7 @@
           parent.removeClass("read");
           parent.addClass("unread");
         }
-        $.ajax(href, {async: false});
+        $.ajax(href);
       };
       $('.toggleread a').on('click', function(e) {
         if (e.button != 0) return;
