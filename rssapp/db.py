@@ -69,7 +69,11 @@ class Feed(Base):
     # http caching
     last_modified = Column(DateTime)
     etag = Column(DateTime)
-    
+
+    @property
+    def num_unread(self):
+        return session.query(Entry).filter_by(owner = self, read = False).count()
+
 class Entry(Base):
     __tablename__ = 'Entry'
     id = Column(Integer, primary_key=True, index=True) #danger, assumed nondecreasing

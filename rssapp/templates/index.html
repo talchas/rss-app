@@ -16,8 +16,8 @@
 </div>
 <div id="feeds">
   {% for item in feeds %}
-    <div class="feed">
-      <a href="{{ url_for('feed', feed_id = item.id) }}">{{ item.name }}</a>
+    <div class="feed{% if item.num_unread > 0 %} unread{% endif %}">
+      <a href="{{ url_for('feed', feed_id = item.id) }}">{{ item.name }}{% if item.num_unread > 0 %} ({{ item.num_unread }}){% endif %}</a>
     </div>
   {% endfor %}
 </div>

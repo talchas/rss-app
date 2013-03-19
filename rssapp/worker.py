@@ -98,8 +98,11 @@ class Worker:
             p.entries.reverse() # most recent should have largest id
             for e in p.entries:
                 id = e.get('original_id') or e.get('id')
-                print id
                 entry = None
+                if not id:
+                    id = e.get('link', e.get('title'))
+                    if id:
+                        id = 'tag:rssapp.talchas.net:'+id
                 if id:
                     entry = db.session.query(db.Entry).filter_by(parsed_id = id).first()
                 if not entry:
@@ -109,6 +112,7 @@ class Worker:
                    entry.date = st_datetime(e.updated_parsed)
                 entry.url = e.get('link', entry.url)
                 entry.name = e.get('title', entry.name)
+
                 db.session.flush()
         feed.next_check = now + timedelta(minutes = feed.ttl)
 
