@@ -7,6 +7,7 @@ import feedparser
 import sys
 import os
 import calendar
+import socket
 
 def runner(self):
     self.run()
@@ -43,6 +44,8 @@ class Worker:
 
         def __cmp__(self, other):
             return cmp(self.when, other.when)
+        def __str__(self):
+            return "<%s: %s>" % (str(self.when), str(self.function))
 
     @decorator
     def rpc(f, *args, **kw):
@@ -57,6 +60,7 @@ class Worker:
     def run(self):
         self.is_child = True
         print "worker2 %d" % os.getpid()
+        socket.setdefaulttimeout(10.0)
         self.recheck_feeds()
         while True:
             if self.q.poll(self.next_timeout()):
