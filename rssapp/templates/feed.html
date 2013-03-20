@@ -10,6 +10,7 @@
     </a>
     <a class="markread" href="{{ url_for('read_feed', feed_id = feed.id, stamp=stamp) }}">Mark all as read</a>
     <a class="title" href="{{ feed.link }}">{{ feed.name }}</a>
+    <a class="url" href="{{ feed.feed_url }}">feed</a>
   </div>
   {% for item in items %}
     {{ showentry(item, toggle=True) }}

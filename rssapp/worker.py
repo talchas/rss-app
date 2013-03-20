@@ -82,14 +82,13 @@ class Worker:
         #, etag = feed.etag, modified = feed.last_modified
         if p.get('status', 410) == 410: # dead
             feed.ttl *= 2
-        elif p.status == 301: # moved permanently
-            pass
-            # feed.feed_url = p.href # honestly, probably more likely hax
         elif p.status == 304: # not modified
             pass
         elif not p.feed or p.status >= 400:
             feed.ttl *= 1.2
         else:
+            if p.get('status') == 301 and p.get('href'): # moved permanently
+                feed.feed_url = p.href
             feed.name = p.feed.get('title', feed.name)
             feed.link = p.feed.get('link', feed.link)
             try:
